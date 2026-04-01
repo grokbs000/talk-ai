@@ -1,0 +1,7 @@
+{
+  "name": "Talk AI",
+  "description": "A language learning Web App with real-time AI voice tutors.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
