@@ -144,9 +144,10 @@ AI角色的主要任務是幫助使用者練習真實語言對話。你會：
       timeoutRef.current = setTimeout(() => {
         const promptContext = messages.slice(-6).map(m => `\${m.role}: \${m.text}`).join('\n');
         aiRef.current!.models.generateContent({
-          model: 'gemini-3.5-flash',
+          model: 'gemini-3-flash-preview',
           contents: `You are an AI language tutor. Based on the conversation context, provide 2 short, simple example sentences (in ${langName}) the user could say next. Return a valid JSON array of strings ONLY. Example: ["sentence 1", "sentence 2"]\n\nContext:\n${promptContext}`
         }).then(res => {
+          console.log('Generated hints:', res.text);
           try {
             const text = res.text || '';
             const match = text.match(/\[.*\]/s);
