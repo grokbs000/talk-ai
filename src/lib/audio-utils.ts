@@ -21,10 +21,32 @@ export class AudioRecorder {
 
     this.processor.onaudioprocess = (e) => {
       const inputData = e.inputBuffer.getChannelData(0);
-      const pcm16 = new Int16Array(inputData.length);
-      for (let i = 0; i < inputData.length; i++) {
-        let s = Math.max(-1, Math.min(1, inputData[i]));
-        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      const inputSampleRate = this.audioContext!.sampleRate;
+      
+      let pcm16: Int16Array;
+      
+      if (inputSampleRate === 16000) {
+        pcm16 = new Int16Array(inputData.length);
+        for (let i = 0; i < inputData.length; i++) {
+          let s = Math.max(-1, Math.min(1, inputData[i]));
+          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+      } else {
+        // Downsample to 16000 Hz using linear interpolation
+        const ratio = inputSampleRate / 16000;
+        const newLength = Math.floor(inputData.length / ratio);
+        pcm16 = new Int16Array(newLength);
+        for (let i = 0; i < newLength; i++) {
+          const dataIndex = i * ratio;
+          const indexFloor = Math.floor(dataIndex);
+          const indexCeil = Math.min(inputData.length - 1, indexFloor + 1);
+          const weight = dataIndex - indexFloor;
+          
+          // Linear interpolation
+          const interpolated = inputData[indexFloor] * (1 - weight) + inputData[indexCeil] * weight;
+          let s = Math.max(-1, Math.min(1, interpolated));
+          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
       }
 
       // Convert to base64
