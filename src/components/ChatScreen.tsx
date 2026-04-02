@@ -5,7 +5,7 @@ import { useLiveAPI } from '../lib/gemini-live';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Mic, MicOff, Send, PhoneOff, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Send, PhoneOff, Loader2, Lightbulb } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
@@ -31,6 +31,9 @@ export function ChatScreen({ config, onEnd }: ChatScreenProps) {
   const aiRef = useRef<GoogleGenAI | null>(null);
   const translatingRef = useRef<Set<string>>(new Set());
 
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     if (!aiRef.current) {
       try {
@@ -48,21 +51,38 @@ export function ChatScreen({ config, onEnd }: ChatScreenProps) {
   const levelName = proficiencyLevels.find(l => l.id === config.level)?.name || config.level;
 
   const systemInstruction = `
-You are ${config.tutor.name}, an AI language tutor helping the user practice ${langName}.
+你是專業的語言口說教學專家，一位耐心、鼓勵、友善的語言導師，確保在對話練習時角色都像真人一樣自然、有情感。
+
+You are teaching the user in ${langName}. Your name is ${config.tutor.name}.
 Your personality: ${config.tutor.personality}
 Your backstory: ${config.tutor.backstory}
 
-The user's proficiency level is: ${levelName}. Adjust your vocabulary, grammar complexity, and speaking speed accordingly.
-If they make mistakes, gently correct them in a supportive way.
+The user's proficiency level is: ${levelName}. 
+Current Scenario: ${config.scenario.title}. Scenario details: ${config.scenario.systemPrompt}
 
-Current Scenario: ${config.scenario.title}
-Scenario details: ${config.scenario.systemPrompt}
+AI角色的主要任務是幫助使用者練習真實語言對話。你會：
+- 用自然、流利的語言與使用者進行即時語音對話
+- 根據使用者的語言水平自動調整難度（初學者用簡單句子，中高級用更自然的表達）
+- 在適當時候糾正發音、文法或用詞，但要溫和且建設性
+- 提供即時回饋，並鼓勵使用者多說
 
-Guidelines:
-- Always respond in ${langName} unless the user explicitly asks for a translation or explanation in another language.
-- Keep your responses concise and conversational, suitable for spoken dialogue.
-- Ask follow-up questions to keep the conversation going.
-- Stay in character at all times.
+【重要：幫助提示機制（Help Hint）】
+- 當你結束一段話後，如果使用者稍微沉思沒有馬上說話，你必須主動提供幫助。
+- 幫助方式：用溫柔、鼓勵的語氣說類似以下句子：
+  - "No pressure! You can say something like: 'That sounds interesting. What do you think?'"
+  - "It's okay if you're thinking. Try this: 'I agree, but...'"
+  - "Let me help you. A natural response could be: 'Really? Why do you think so?'"
+- 給予提示時，請提供 1-2 個簡單的建議回答，讓使用者可以直接參考或修改來說。
+- 提示完後，繼續等待使用者回應，不要一直說話。
+
+其他對話規則：
+- 每次只說一段自然長度的話（不要一次說太多）
+- 經常鼓勵使用者："Great job!"、"That was clear!"、"You're improving a lot!"
+- 如果使用者不懂或說中文，可以先用 ${langName} 簡單回應，再用括號簡單翻譯或解釋
+- 保持互動流暢，像真實的朋友在聊天
+
+請讓語音聽起來非常自然、有情感。
+對話開始時，請用溫暖的語氣自我介紹，並準備開始對話。
 `;
 
   const {
@@ -113,6 +133,45 @@ Guidelines:
       }
     });
   }, [messages, showTranslation, translations]);
+
+  useEffect(() => {
+    if (!aiRef.current) return;
+    const lastMsg = messages[messages.length - 1];
+
+    if (lastMsg && lastMsg.role === 'model' && lastMsg.isFinal) {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      
+      timeoutRef.current = setTimeout(() => {
+        const promptContext = messages.slice(-6).map(m => `\${m.role}: \${m.text}`).join('\n');
+        aiRef.current!.models.generateContent({
+          model: 'gemini-3.5-flash',
+          contents: `You are an AI language tutor. Based on the conversation context, provide 2 short, simple example sentences (in ${langName}) the user could say next. Return a valid JSON array of strings ONLY. Example: ["sentence 1", "sentence 2"]\n\nContext:\n${promptContext}`
+        }).then(res => {
+          try {
+            const text = res.text || '';
+            const match = text.match(/\[.*\]/s);
+            if (match) {
+              const parsed = JSON.parse(match[0]);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setSuggestions(parsed.slice(0, 2));
+              }
+            }
+          } catch (e) {
+            console.error('Failed to parse suggestions:', e);
+          }
+        }).catch(console.error);
+      }, 3500); // Wait 3.5 seconds of silence
+    } else {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (lastMsg && lastMsg.role === 'user') {
+        setSuggestions([]);
+      }
+    }
+
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [messages, langName]);
 
   const handleSendText = (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,6 +264,28 @@ Guidelines:
               </div>
             </div>
           ))}
+          {suggestions.length > 0 && messages[messages.length - 1]?.role === 'model' && (
+            <div className="flex justify-center animate-in fade-in slide-in-from-bottom-4 duration-500 mt-4">
+              <div className="flex flex-col gap-2 max-w-[90%]">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-amber-500/80 justify-center mb-1">
+                  <Lightbulb className="w-3.5 h-3.5" />
+                  <span>你可以這樣說 (Try saying):</span>
+                </div>
+                {suggestions.map((s, i) => (
+                  <button 
+                    key={i}
+                    onClick={() => {
+                      sendTextMessage(s);
+                      setSuggestions([]);
+                    }}
+                    className="text-sm px-4 py-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors text-left"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
