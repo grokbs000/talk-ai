@@ -7,9 +7,7 @@ export class AudioRecorder {
 
   async start(onData: (base64Data: string) => void) {
     this.onDataCallback = onData;
-    this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-      sampleRate: 16000,
-    });
+    this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
 
     this.mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -78,9 +76,7 @@ export class AudioPlayer {
 
   init() {
     if (!this.audioContext) {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-        sampleRate: 24000,
-      });
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       this.nextPlayTime = this.audioContext.currentTime;
     }
   }

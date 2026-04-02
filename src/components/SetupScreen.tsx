@@ -20,10 +20,14 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
   const [selectedScenarioId, setSelectedScenarioId] = useState(scenarios[0].id);
 
   const handleStart = () => {
-    // Unlock iOS Audio with the user gesture
-    globalAudioPlayer.init();
-    if (globalAudioPlayer.getAudioContext()?.state === 'suspended') {
-      globalAudioPlayer.getAudioContext()?.resume();
+    // Unlock iOS Audio with the user gesture, wrapped in try-catch to prevent UI crash
+    try {
+      globalAudioPlayer.init();
+      if (globalAudioPlayer.getAudioContext()?.state === 'suspended') {
+        globalAudioPlayer.getAudioContext()?.resume();
+      }
+    } catch (e) {
+      console.error('Failed to initialize AudioContext on user gesture:', e);
     }
     
     const tutor = tutors.find(t => t.id === selectedTutorId)!;
