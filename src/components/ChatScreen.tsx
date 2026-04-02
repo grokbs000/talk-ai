@@ -196,6 +196,10 @@ AI角色的主要任務是幫助使用者練習真實語言對話。你會：
   };
 
   const toggleRecording = () => {
+    import('../lib/audio-utils').then(({ globalAudioPlayer }) => {
+      globalAudioPlayer.resumeContext();
+    });
+    
     if (isRecording) {
       stopRecording();
     } else {

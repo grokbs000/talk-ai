@@ -99,7 +99,21 @@ export class AudioPlayer {
   init() {
     if (!this.audioContext) {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Play a silent buffer to truly unlock mobile audio on interaction
+      const buffer = this.audioContext.createBuffer(1, 1, 24000);
+      const source = this.audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.audioContext.destination);
+      source.start(0);
+
       this.nextPlayTime = this.audioContext.currentTime;
+    }
+  }
+
+  resumeContext() {
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
     }
   }
 

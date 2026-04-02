@@ -23,9 +23,7 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
     // Unlock iOS Audio with the user gesture, wrapped in try-catch to prevent UI crash
     try {
       globalAudioPlayer.init();
-      if (globalAudioPlayer.getAudioContext()?.state === 'suspended') {
-        globalAudioPlayer.getAudioContext()?.resume();
-      }
+      globalAudioPlayer.resumeContext();
     } catch (e) {
       console.error('Failed to initialize AudioContext on user gesture:', e);
     }
