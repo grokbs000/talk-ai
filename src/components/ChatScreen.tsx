@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Tutor } from '../data/tutors';
 import { languages, proficiencyLevels, Scenario } from '../data/scenarios';
 import { useLiveAPI } from '../lib/gemini-live';
+import { generateWithFallback } from '../lib/llm-fallback';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -24,7 +25,7 @@ interface ChatScreenProps {
 
 export function ChatScreen({ config, onEnd }: ChatScreenProps) {
   const [inputText, setInputText] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [showTranslation, setShowTranslation] = useState(false);
   const [translations, setTranslations] = useState<Record<string, string>>({});
@@ -110,10 +111,10 @@ AI角色的主要任務是幫助使用者練習真實語言對話。你會：
   }, [connect, disconnect]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, suggestions, translations]);
 
   useEffect(() => {
     if (!showTranslation || !aiRef.current) return;
@@ -124,12 +125,16 @@ AI角色的主要任務是幫助使用者練習真實語言對話。你會：
         setTranslations(prev => ({ ...prev, [msg.id]: '...' }));
         
         console.log('Translating message:', msg.text);
-        aiRef.current!.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: `Translate the following text to Traditional Chinese (繁體中文). Only return the translation, nothing else.\n\nText: ${msg.text}`
-        }).then(res => {
-          console.log('Translation result:', res.text);
-          setTranslations(prev => ({ ...prev, [msg.id]: res.text || '' }));
+        const prompt = `Translate the following text to Traditional Chinese (繁體中文). Only return the translation, nothing else.\n\nText: ${msg.text}`;
+        generateWithFallback(
+          () => aiRef.current!.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt
+          }).then(res => res.text || ''),
+          prompt
+        ).then(result => {
+          console.log('Translation result:', result);
+          setTranslations(prev => ({ ...prev, [msg.id]: result }));
         }).catch(err => {
           console.error('Translation error:', err);
           setTranslations(prev => ({ ...prev, [msg.id]: '(翻譯失敗)' }));
@@ -147,14 +152,18 @@ AI角色的主要任務是幫助使用者練習真實語言對話。你會：
       
       timeoutRef.current = setTimeout(() => {
         const promptContext = messages.slice(-6).map(m => `\${m.role}: \${m.text}`).join('\n');
-        aiRef.current!.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: `You are an AI language tutor. Based on the conversation context, provide 2 short, simple example sentences (in ${langName}) the user could say next. Return a valid JSON array of strings ONLY. Example: ["sentence 1", "sentence 2"]\n\nContext:\n${promptContext}`
-        }).then(res => {
-          console.log('Generated hints:', res.text);
+        const prompt = `You are an AI language tutor. Based on the conversation context, provide 2 short, simple example sentences (in ${langName}) the user could say next. Return a valid JSON array of strings ONLY. Example: ["sentence 1", "sentence 2"]\n\nContext:\n${promptContext}`;
+        
+        generateWithFallback(
+          () => aiRef.current!.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt
+          }).then(res => res.text || ''),
+          prompt
+        ).then(result => {
+          console.log('Generated hints:', result);
           try {
-            const text = res.text || '';
-            const match = text.match(/\[.*\]/s);
+            const match = result.match(/\[.*\]/s);
             if (match) {
               const parsed = JSON.parse(match[0]);
               if (Array.isArray(parsed) && parsed.length > 0) {
@@ -232,7 +241,7 @@ AI角色的主要任務是幫助使用者練習真實語言對話。你會：
       )}
 
       {/* Chat Area */}
-      <ScrollArea className="flex-1 px-4 py-2" ref={scrollRef}>
+      <ScrollArea className="flex-1 px-4 py-2">
         <div className="space-y-6 py-4">
           {messages.length === 0 && isConnected && (
             <div className="text-center text-muted-foreground mt-20 space-y-4">
@@ -291,6 +300,7 @@ AI角色的主要任務是幫助使用者練習真實語言對話。你會：
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} className="h-4" />
         </div>
       </ScrollArea>
 
