@@ -35,8 +35,8 @@ export function useLiveAPI({ systemInstruction, voiceName }: UseLiveAPIProps) {
       console.error("Missing Gemini API key", e);
       setError("Please check your GEMINI_API_KEY in .env file.");
     }
-    audioRecorderRef.current = new AudioRecorder();
     audioPlayerRef.current = globalAudioPlayer;
+    audioRecorderRef.current = new AudioRecorder(globalAudioPlayer.getAudioContext()!);
 
     return () => {
       disconnect();

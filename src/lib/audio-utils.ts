@@ -1,13 +1,16 @@
 export class AudioRecorder {
-  private audioContext: AudioContext | null = null;
+  private audioContext: AudioContext;
   private mediaStream: MediaStream | null = null;
   private processor: ScriptProcessorNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
   private onDataCallback: ((base64Data: string) => void) | null = null;
 
+  constructor(sharedContext: AudioContext) {
+    this.audioContext = sharedContext;
+  }
+
   async start(onData: (base64Data: string) => void) {
     this.onDataCallback = onData;
-    this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
 
     this.mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -84,10 +87,7 @@ export class AudioRecorder {
       this.mediaStream.getTracks().forEach((track) => track.stop());
       this.mediaStream = null;
     }
-    if (this.audioContext) {
-      this.audioContext.close();
-      this.audioContext = null;
-    }
+    // We do NOT close the shared audioContext here
     this.onDataCallback = null;
   }
 }
@@ -95,25 +95,31 @@ export class AudioRecorder {
 export class AudioPlayer {
   private audioContext: AudioContext | null = null;
   private nextPlayTime: number = 0;
+  private unlockNode: AudioBufferSourceNode | null = null;
 
   init() {
     if (!this.audioContext) {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
-      // Play a silent buffer to truly unlock mobile audio on interaction
-      const buffer = this.audioContext.createBuffer(1, 1, 24000);
-      const source = this.audioContext.createBufferSource();
-      source.buffer = buffer;
-      source.connect(this.audioContext.destination);
-      source.start(0);
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        this.audioContext = new AudioContextClass();
+        
+        // Play a silent buffer to truly unlock mobile audio on interaction
+        const buffer = this.audioContext.createBuffer(1, 1, 24000);
+        this.unlockNode = this.audioContext.createBufferSource();
+        this.unlockNode.buffer = buffer;
+        this.unlockNode.connect(this.audioContext.destination);
+        this.unlockNode.start(0);
 
-      this.nextPlayTime = this.audioContext.currentTime;
+        this.nextPlayTime = this.audioContext.currentTime;
+      } catch (e) {
+        console.error("Failed to initialize AudioContext", e);
+      }
     }
   }
 
   resumeContext() {
     if (this.audioContext && this.audioContext.state === 'suspended') {
-      this.audioContext.resume();
+      this.audioContext.resume().catch(console.error);
     }
   }
 
@@ -124,38 +130,47 @@ export class AudioPlayer {
   playBase64(base64: string) {
     if (!this.audioContext) return;
 
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+    // Aggressively try to resume context on iOS exactly when audio needs to play
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume().catch(console.error);
     }
 
-    // PCM 16-bit little endian
-    const int16Array = new Int16Array(bytes.buffer);
-    const float32Array = new Float32Array(int16Array.length);
-    for (let i = 0; i < int16Array.length; i++) {
-      float32Array[i] = int16Array[i] / 32768.0;
+    try {
+      const binaryString = atob(base64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      // PCM 16-bit little endian
+      const int16Array = new Int16Array(bytes.buffer);
+      const float32Array = new Float32Array(int16Array.length);
+      for (let i = 0; i < int16Array.length; i++) {
+        float32Array[i] = int16Array[i] / 32768.0;
+      }
+
+      const audioBuffer = this.audioContext.createBuffer(1, float32Array.length, 24000);
+      audioBuffer.getChannelData(0).set(float32Array);
+
+      const source = this.audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.audioContext.destination);
+
+      let currentTime = this.audioContext.currentTime;
+      // Add a tiny buffer (50ms) to prevent stutter on mobile due to execution delays
+      if (this.nextPlayTime < currentTime + 0.05) {
+        this.nextPlayTime = currentTime + 0.05;
+      }
+
+      source.start(this.nextPlayTime);
+      this.nextPlayTime += audioBuffer.duration;
+    } catch (e) {
+      console.error("Failed to play audio chunk:", e);
     }
-
-    const audioBuffer = this.audioContext.createBuffer(1, float32Array.length, 24000);
-    audioBuffer.getChannelData(0).set(float32Array);
-
-    const source = this.audioContext.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(this.audioContext.destination);
-
-    const currentTime = this.audioContext.currentTime;
-    if (this.nextPlayTime < currentTime) {
-      this.nextPlayTime = currentTime;
-    }
-
-    source.start(this.nextPlayTime);
-    this.nextPlayTime += audioBuffer.duration;
   }
 
   stop() {
-    // We don't close the shared context anymore, just reset playtime
     this.nextPlayTime = this.audioContext ? this.audioContext.currentTime : 0;
   }
 }
