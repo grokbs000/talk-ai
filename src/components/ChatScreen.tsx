@@ -147,7 +147,7 @@ Guidelines:
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Switch id="translation-mode" checked={showTranslation} onCheckedChange={setShowTranslation} />
-            <Label htmlFor="translation-mode" className="text-[10px] cursor-pointer font-medium">中英字幕</Label>
+            <Label htmlFor="translation-mode" className="text-[10px] cursor-pointer font-medium">中文字幕</Label>
           </div>
           <Button variant="destructive" size="icon" onClick={onEnd} title="End Conversation" className="rounded-full h-8 w-8">
             <PhoneOff className="h-3.5 w-3.5" />
