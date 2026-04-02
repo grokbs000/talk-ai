@@ -6,7 +6,7 @@ import { generateWithFallback } from '../lib/llm-fallback';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Mic, MicOff, Send, PhoneOff, Loader2, Lightbulb } from 'lucide-react';
+import { Mic, MicOff, Send, PhoneOff, Loader2, Lightbulb, ChevronLeft } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
@@ -211,7 +211,10 @@ AI角色的主要任務是幫助使用者練習真實語言對話。你會：
     <div className="flex flex-col h-[100dvh] max-w-3xl mx-auto bg-transparent">
       {/* Header */}
       <header className="flex items-center justify-between p-4 glass border-none rounded-b-2xl z-20">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={onEnd} className="h-8 w-8 -ml-2 rounded-full text-muted-foreground mr-1">
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
           <Avatar className="h-10 w-10 border-none ring-1 ring-white/20">
             <AvatarFallback className="text-xl bg-background/50">{config.tutor.avatar}</AvatarFallback>
           </Avatar>
