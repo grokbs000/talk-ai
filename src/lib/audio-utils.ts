@@ -85,6 +85,10 @@ export class AudioPlayer {
     }
   }
 
+  getAudioContext() {
+    return this.audioContext;
+  }
+
   playBase64(base64: string) {
     if (!this.audioContext) return;
 
@@ -119,10 +123,9 @@ export class AudioPlayer {
   }
 
   stop() {
-    if (this.audioContext) {
-      this.audioContext.close();
-      this.audioContext = null;
-    }
-    this.nextPlayTime = 0;
+    // We don't close the shared context anymore, just reset playtime
+    this.nextPlayTime = this.audioContext ? this.audioContext.currentTime : 0;
   }
 }
+
+export const globalAudioPlayer = new AudioPlayer();

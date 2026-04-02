@@ -1,6 +1,6 @@
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AudioPlayer, AudioRecorder } from './audio-utils';
+import { AudioPlayer, AudioRecorder, globalAudioPlayer } from './audio-utils';
 
 export interface ChatMessage {
   id: string;
@@ -36,7 +36,7 @@ export function useLiveAPI({ systemInstruction, voiceName }: UseLiveAPIProps) {
       setError("Please check your GEMINI_API_KEY in .env file.");
     }
     audioRecorderRef.current = new AudioRecorder();
-    audioPlayerRef.current = new AudioPlayer();
+    audioPlayerRef.current = globalAudioPlayer;
 
     return () => {
       disconnect();

@@ -7,6 +7,7 @@ import { languages, proficiencyLevels, scenarios, Scenario } from '../data/scena
 import { tutors, Tutor } from '../data/tutors';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { globalAudioPlayer } from '../lib/audio-utils';
 
 interface SetupScreenProps {
   onStart: (config: { language: string; level: string; tutor: Tutor; scenario: Scenario }) => void;
@@ -19,6 +20,12 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
   const [selectedScenarioId, setSelectedScenarioId] = useState(scenarios[0].id);
 
   const handleStart = () => {
+    // Unlock iOS Audio with the user gesture
+    globalAudioPlayer.init();
+    if (globalAudioPlayer.getAudioContext()?.state === 'suspended') {
+      globalAudioPlayer.getAudioContext()?.resume();
+    }
+    
     const tutor = tutors.find(t => t.id === selectedTutorId)!;
     const scenario = scenarios.find(s => s.id === selectedScenarioId)!;
     onStart({ language, level, tutor, scenario });
